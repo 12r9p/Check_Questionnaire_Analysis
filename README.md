@@ -26,17 +26,26 @@
 
 このツールは、ライブラリの依存関係を管理するために`Conda`仮想環境で実行することを強く推奨します。
 
-1.  **Conda 仮想環境の作成**
-    ターミナルで以下のコマンドを実行し、`survey-tool`という名前の仮想環境を作成します。このコマンドで、実行に必要なライブラリもすべて同時にインストールされます。
+1.  **Conda仮想環境の作成とライブラリのインストール**
+    まず、Condaで主要なライブラリをインストールします。
 
     ```bash
-    conda create -n survey-tool python=3.11 tk pillow pandas opencv-python japanize-matplotlib
+    conda create -n survey-tool python=3.11 tk pillow pandas opencv tabulate
+    ```
+    *(途中で `Proceed ([y]/n)?` と聞かれたら `y` を入力してEnterを押してください)*
+
+    次に、作成した環境を有効化し、Condaの標準チャンネルにないライブラリを`pip`でインストールします。
+
+    ```bash
+    # 環境を有効化
+    conda activate survey-tool
+
+    # pipで残りのライブラリをインストール
+    pip install japanize-matplotlib
     ```
 
-    _(途中で `Proceed ([y]/n)?` と聞かれたら `y` を入力して Enter を押してください)_
-
-2.  **仮想環境のアクティベート**
-    作成した環境を有効にします。このプロジェクトを使用する際は、必ずこのコマンドを実行してください。
+2.  **仮想環境のアクティベート（2回目以降）**
+    一度環境を作った後、ターミナルを再起動した場合など、2回目以降にこのプロジェクトを使用する際は、以下のコマンドで環境を有効化してください。
 
     ```bash
     conda activate survey-tool
@@ -52,16 +61,17 @@
 
 まず、解析したいアンケートの「どこに」「何があるか」を定義する設定ファイルを作成します。
 
-1.  上記の手順で Conda 環境を有効化します。
+1.  **Conda環境を有効化**します。
+    ```bash
+    conda activate survey-tool
+    ```
 
 2.  ターミナルでこのプロジェクトのディレクトリに移動します。
-
     ```bash
-    cd /path/to/アンケート解析
+    cd 任意のディレクトリ
     ```
 
 3.  以下のコマンドで、設定ツールを起動します。
-
     ```bash
     python coordinate_setter.py
     ```
@@ -106,7 +116,11 @@
     - **`④`**: 1 枚ずつ解析結果を画像つきで確認（デバッグ用）
     - **`⑤`**: 全画像を解析して CSV を生成（本番）
 
-3.  Jupyter Notebook や Google Colab、またはターミナルで`python main.py`のようにしてスクリプトを実行します。
-    _(Colab で実行する場合は、ファイルのアップロード方法などを適宜変更してください)_
+3.  Jupyter NotebookやGoogle Colabで実行するか、ターミナルで以下のコマンドを実行します。
+    *(Colabで実行する場合は、ファイルのアップロード方法などを適宜変更してください)*
+    ```bash
+    # (survey-tool)環境が有効化されていることを確認
+    python main.py
+    ```
 
 4.  実行が完了すると、プロジェクトのルートに`results.csv`が生成されます。また、自由記述があった画像は`free_texts`フォルダにコピーされます。
