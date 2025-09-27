@@ -39,18 +39,17 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # bbox: [x, y, width, height]
 CONFIG = {
     "checkboxes": [
-        {"name": "Q1_選択肢1", "bbox": [100, 200, 20, 20]},
-        {"name": "Q1_選択肢2", "bbox": [200, 200, 20, 20]},
-        {"name": "Q2_選択肢1", "bbox": [100, 300, 20, 20]},
-        {"name": "Q2_選択肢2", "bbox": [200, 300, 20, 20]},
+        {"name": "Q1_選択肢1", "bbox": [100, 200, 20, 20], "threshold": 0.1},
+        {"name": "Q1_選択肢2", "bbox": [200, 200, 20, 20], "threshold": 0.1},
+        {"name": "Q2_選択肢1", "bbox": [100, 300, 20, 20], "threshold": 0.1},
+        {"name": "Q2_選択肢2", "bbox": [200, 300, 20, 20], "threshold": 0.1},
         # 必要に応じて追加
     ],
     "free_texts": [
         {"name": "感想", "bbox": [100, 400, 500, 100], "threshold": 0.01},
         {"name": "その他", "bbox": [100, 550, 500, 100], "threshold": 0.01},
         # 必要に応じて追加
-    ],
-    "checkbox_threshold": 0.1           # チェックありと判定する黒ピクセル率の閾値（要調整）
+    ]
 }
 print("✅ CONFIG読み込み完了")
 
@@ -210,7 +209,7 @@ def run_analysis(config, image_dir, output_dir, output_csv):
         for cb in config["checkboxes"]:
             x, y, w, h = cb["bbox"]
             roi = img[y:y+h, x:x+w]
-            checked, _ = is_checked(roi, config["checkbox_threshold"])
+            checked, _ = is_checked(roi, cb["threshold"])
             result[cb["name"]] = int(checked)
             console_line += f" {cb['name']}:{'1' if checked else '0'}"
 
@@ -282,7 +281,7 @@ def debug_and_visualize_one_by_one(config, image_dir):
         for cb in config["checkboxes"]:
             x, y, w, h = cb["bbox"]
             roi = img[y:y+h, x:x+w]
-            checked, ratio = is_checked(roi, config["checkbox_threshold"])
+            checked, ratio = is_checked(roi, cb["threshold"])
             color = (0, 255, 0) if checked else (0, 0, 255) # BGR
             cv2.rectangle(preview, (x, y), (x+w, y+h), color, 2)
             print(f"  - {cb['name']}: {'チェックあり' if checked else 'なし'} (黒ピクセル率: {ratio:.3f})")

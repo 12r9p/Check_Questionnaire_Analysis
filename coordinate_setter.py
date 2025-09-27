@@ -160,18 +160,32 @@ class CoordinateSetterApp(tk.Tk):
         self.draw_regions()
 
     def generate_config_code(self):
-        # ... (この関数は変更なし)
         checkboxes = []
         free_texts = []
+        
         for region in self.regions:
-            item = {"name": region["name"], "bbox": region["bbox"]}
+            name_str = repr(region["name"]) # クォートを正しく処理
+            bbox_str = str(region["bbox"])
+
             if region["type"] == "checkbox":
-                checkboxes.append(item)
+                threshold = 0.1 # チェックボックス用のデフォルト閾値
+                checkboxes.append(f'        {{"name": {name_str}, "bbox": {bbox_str}, "threshold": {threshold}}}')
             else:
-                item["threshold"] = 0.01 
-                free_texts.append(item)
-        config = {"checkboxes": checkboxes, "free_texts": free_texts, "checkbox_threshold": 0.1}
-        config_str = "CONFIG = " + json.dumps(config, indent=4, ensure_ascii=False)
+                threshold = 0.01 # 固定値
+                free_texts.append(f'        {{"name": {name_str}, "bbox": {bbox_str}, "threshold": {threshold}}}')
+
+        # 文字列を組み立てる
+        config_parts = ["CONFIG = {"]
+        config_parts.append('    "checkboxes": [')
+        config_parts.append(",\n".join(checkboxes))
+        config_parts.append('    ],')
+        config_parts.append('    "free_texts": [')
+        config_parts.append(",\n".join(free_texts))
+        config_parts.append('    ],')
+        config_parts.append('    "checkbox_threshold": 0.1 # この値は手動で調整してください')
+        config_parts.append("}")
+        config_str = "\n".join(config_parts)
+        
         self.code_text.delete(1.0, tk.END)
         self.code_text.insert(tk.END, config_str)
         messagebox.showinfo("成功", "設定コードが生成されました。下のボックスからコピーしてください。")
@@ -191,9 +205,8 @@ class CoordinateSetterApp(tk.Tk):
             return
             
         self.scale *= factor
-        # ズームの中心をカーソル位置に
-        self.canvas.scale("all", event.x, event.y, factor, factor)
-        self.draw_regions() # スケール変更後に再描画
+        # 画像と領域を新しいスケールで再描画する
+        self.show_image()
 
 if __name__ == "__main__":
     app = CoordinateSetterApp()
