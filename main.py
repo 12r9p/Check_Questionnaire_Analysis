@@ -1,3 +1,8 @@
+# --- 実行に必要なライブラリ ---
+# このスクリプトを実行するには、以下のライブラリが必要です。
+# pipやcondaでインストールしてください。
+# pip install opencv-python pandas matplotlib japanize-matplotlib
+
 # --- ライブラリのインポート ---
 import os
 import shutil
@@ -36,21 +41,36 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # --- アンケート定義 ---
-# bbox: [x, y, width, height]
 CONFIG = {
     "checkboxes": [
-        {"name": "Q1_選択肢1", "bbox": [100, 200, 20, 20], "threshold": 0.1},
-        {"name": "Q1_選択肢2", "bbox": [200, 200, 20, 20], "threshold": 0.1},
-        {"name": "Q2_選択肢1", "bbox": [100, 300, 20, 20], "threshold": 0.1},
-        {"name": "Q2_選択肢2", "bbox": [200, 300, 20, 20], "threshold": 0.1},
-        # 必要に応じて追加
+            {"name": "1知っている", "bbox": [171, 1491, 79, 75], "threshold": 0.08},
+    {"name": "1知らない", "bbox": [857, 1498, 79, 75], "threshold": 0.085},
+    {"name": "2友人知人から", "bbox": [172, 1718, 79, 75], "threshold": 0.085},
+    {"name": "2チラシから", "bbox": [661, 1717, 79, 75], "threshold": 0.085},
+    {"name": "2ネット情報から", "bbox": [1124, 1719, 79, 75], "threshold": 0.085},
+    {"name": "2イベントで", "bbox": [1698, 1721, 79, 75], "threshold": 0.085},
+    {"name": "2公民館等で", "bbox": [171, 1836, 79, 75], "threshold": 0.085},
+    {"name": "2街で見かけた", "bbox": [662, 1833, 79, 75], "threshold": 0.085},
+    {"name": "3興味がある", "bbox": [174, 2063, 79, 75], "threshold": 0.085},
+    {"name": "3子供の体験希望あり", "bbox": [852, 2063, 79, 75], "threshold": 0.085},
+    {"name": "3特になし", "bbox": [1813, 2062, 79, 75], "threshold": 0.085},
+    {"name": "4宿泊キャンプ野営キャンプ", "bbox": [158, 2288, 79, 75], "threshold": 0.085},
+    {"name": "4ロープ結び", "bbox": [1305, 2289, 79, 75], "threshold": 0.085},
+    {"name": "4ハイキング登山", "bbox": [157, 2404, 79, 75], "threshold": 0.085},
+    {"name": "4サイクリング", "bbox": [1304, 2406, 79, 75], "threshold": 0.085},
+    {"name": "4夏祭りクリスマス会", "bbox": [159, 2521, 79, 75], "threshold": 0.085},
+    {"name": "4釣り", "bbox": [1303, 2522, 79, 75], "threshold": 0.085},
+    {"name": "4スキースケート", "bbox": [158, 2632, 79, 75], "threshold": 0.085},
+    {"name": "4芋掘り", "bbox": [1301, 2633, 79, 75], "threshold": 0.085}
     ],
     "free_texts": [
-        {"name": "感想", "bbox": [100, 400, 500, 100], "threshold": 0.01},
-        {"name": "その他", "bbox": [100, 550, 500, 100], "threshold": 0.01},
-        # 必要に応じて追加
+        {"name": '2その他', "bbox": [1472, 1823, 766, 94], "threshold": 0.01},
+        {"name": '2その他の活動', "bbox": [682, 2729, 1545, 96], "threshold": 0.01},
+        {"name": '5ご意見等', "bbox": [194, 2980, 2099, 278], "threshold": 0.01}
     ]
 }
+
+
 print("✅ CONFIG読み込み完了")
 
 
@@ -307,7 +327,7 @@ def debug_and_visualize_one_by_one(config, image_dir):
 # 以下の①〜⑤のコメントを一つずつ外して、目的に合わせて実行してください。
 
 # ① 画像をアップロード
-# sample_image_filename = upload_images_to_colab(IMAGE_DIR)
+sample_image_filename = upload_images_to_colab(IMAGE_DIR)
 
 # ② (初回設定時のみ) 座標を確認するため、グリッド付きで画像を表示する
 # 表示されたグリッドを参考に、手動でCONFIGの座標を編集してください。
@@ -318,14 +338,14 @@ def debug_and_visualize_one_by_one(config, image_dir):
 #     print("画像がないため、グリッド表示をスキップします。手動で " + IMAGE_DIR + " に画像を入れてください。")
 
 # ③ (設定後) 設定が正しいかプレビューで確認
-# if 'sample_image_filename' in locals() and sample_image_filename:
-#     sample_image_path = os.path.join(IMAGE_DIR, sample_image_filename)
-#     visualize_config(sample_image_path, CONFIG)
-# else:
-#     print("画像がないため、設定の可視化をスキップします。")
+if 'sample_image_filename' in locals() and sample_image_filename:
+    sample_image_path = os.path.join(IMAGE_DIR, sample_image_filename)
+    visualize_config(sample_image_path, CONFIG)
+else:
+    print("画像がないため、設定の可視化をスキップします。")
 
 # ④ (デバッグ用) 解析結果を一枚ずつ見て確認
 # debug_and_visualize_one_by_one(CONFIG, IMAGE_DIR)
 
 # ⑤ (本番) 全画像を解析してCSV出力
-# run_analysis(CONFIG, IMAGE_DIR, OUTPUT_DIR, OUTPUT_CSV)
+run_analysis(CONFIG, IMAGE_DIR, OUTPUT_DIR, OUTPUT_CSV)

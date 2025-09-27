@@ -6,11 +6,11 @@
 
 ### 座標設定ツール（coordinate_setter.py）
 
-![座標設定ツール](images/Screenshot%200007-09-28%20at%200.03.57.png)
+![座標設定ツール](screenshot/Screenshot%200007-09-28%20at%200.03.57.png)
 
 ### 解析結果の確認
 
-![解析結果](images/Screenshot%200007-09-28%20at%200.04.31.png)
+![解析結果](screenshot/Screenshot%200007-09-28%20at%200.04.31.png)
 
 ## ファイル構成
 
