@@ -1,6 +1,8 @@
+
 import tkinter as tk
 from tkinter import filedialog, simpledialog, messagebox, scrolledtext
 import json
+import copy
 
 try:
     from PIL import Image, ImageTk
@@ -15,21 +17,22 @@ except ImportError:
 class CoordinateSetterApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("座標設定ツール (ズーム: スクロール, 移動: Shift+ドラッグ)")
+        self.title("座標設定ツール (ズーム: スクロール, 移動: Shift+ドラッグ, 領域移動: ドラッグ)")
         self.geometry("1200x800")
 
         # --- データ ---
-        self.image_path = None
         self.original_image = None
         self.photo_image = None
-        self.regions = [] # {name, bbox, type} のリスト
+        self.regions = []
+        self.scale = 1.0
         
+        # --- 状態管理 ---
+        self.drag_data = {"x": 0, "y": 0, "item": None, "mode": None} # mode: "draw" or "move"
+
         # --- レイアウト ---
         top_frame = tk.Frame(self)
         top_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-
         tk.Button(top_frame, text="画像ファイルを開く", command=self.load_image).pack(side=tk.LEFT)
-        
         self.mode = tk.StringVar(value="checkbox")
         tk.Radiobutton(top_frame, text="チェックボックス", variable=self.mode, value="checkbox").pack(side=tk.LEFT, padx=10)
         tk.Radiobutton(top_frame, text="自由記述欄", variable=self.mode, value="free_text").pack(side=tk.LEFT)
@@ -42,16 +45,17 @@ class CoordinateSetterApp(tk.Tk):
 
         right_panel = tk.Frame(main_frame, width=250)
         right_panel.pack(side=tk.RIGHT, fill=tk.Y, padx=5, pady=5)
-        
         tk.Label(right_panel, text="設定済み領域リスト").pack()
         self.region_listbox = tk.Listbox(right_panel)
         self.region_listbox.pack(fill=tk.BOTH, expand=True)
         
-        tk.Button(right_panel, text="選択した領域を削除", command=self.delete_selected_region).pack(fill=tk.X, pady=5)
+        btn_frame = tk.Frame(right_panel)
+        btn_frame.pack(fill=tk.X, pady=5)
+        tk.Button(btn_frame, text="複製", command=self.duplicate_selected_region).pack(side=tk.LEFT, expand=True, fill=tk.X)
+        tk.Button(btn_frame, text="削除", command=self.delete_selected_region).pack(side=tk.LEFT, expand=True, fill=tk.X)
 
         bottom_frame = tk.Frame(self, height=200)
         bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
-
         tk.Button(bottom_frame, text="設定コードを生成", command=self.generate_config_code).pack()
         self.code_text = scrolledtext.ScrolledText(bottom_frame, height=10, wrap=tk.WORD)
         self.code_text.pack(fill=tk.BOTH, expand=True)
@@ -60,28 +64,17 @@ class CoordinateSetterApp(tk.Tk):
         self.canvas.bind("<ButtonPress-1>", self.on_press)
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
-        # パン（移動）
         self.canvas.bind("<Shift-ButtonPress-1>", self.pan_start)
         self.canvas.bind("<Shift-B1-Motion>", self.pan_move)
-        # ズーム
-        self.canvas.bind("<MouseWheel>", self.zoom) # for Windows, macOS
-        self.canvas.bind("<Button-4>", self.zoom) # for Linux
-        self.canvas.bind("<Button-5>", self.zoom) # for Linux
-        
-        self.start_x = self.start_y = 0
-        self.current_rect = None
-        self.scale = 1.0
+        self.canvas.bind("<MouseWheel>", self.zoom)
+        self.canvas.bind("<Button-4>", self.zoom)
+        self.canvas.bind("<Button-5>", self.zoom)
+        self.region_listbox.bind("<Double-Button-1>", self.edit_region_name)
 
     def load_image(self):
-        path = filedialog.askopenfilename(
-            title="画像ファイルを選択",
-            filetypes=[("Image files", "*.png *.jpg *.jpeg *.bmp *.gif")]
-        )
-        if not path:
-            return
-            
-        self.image_path = path
-        self.original_image = Image.open(self.image_path)
+        path = filedialog.askopenfilename(filetypes=[("Image files", "*.png *.jpg *.jpeg")])
+        if not path: return
+        self.original_image = Image.open(path)
         self.scale = 1.0
         self.regions = []
         self.region_listbox.delete(0, tk.END)
@@ -90,102 +83,152 @@ class CoordinateSetterApp(tk.Tk):
 
     def show_image(self):
         if not self.original_image: return
-
         w, h = self.original_image.size
         disp_w, disp_h = int(w * self.scale), int(h * self.scale)
-        
         disp_image = self.original_image.resize((disp_w, disp_h), Image.Resampling.NEAREST)
         self.photo_image = ImageTk.PhotoImage(disp_image)
-        
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, anchor=tk.NW, image=self.photo_image, tags="image")
         self.draw_regions()
 
     def on_press(self, event):
         if not self.original_image: return
-        self.start_x = self.canvas.canvasx(event.x)
-        self.start_y = self.canvas.canvasy(event.y)
-        self.current_rect = self.canvas.create_rectangle(
-            self.start_x, self.start_y, self.start_x, self.start_y, 
-            outline="red", dash=(2, 2), tags="temp_rect"
-        )
+        canvas_x, canvas_y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        
+        # Find if a region is clicked
+        clicked_region_index = self.get_region_at(canvas_x, canvas_y)
+        if clicked_region_index is not None:
+            self.drag_data["mode"] = "move"
+            self.drag_data["index"] = clicked_region_index
+            self.drag_data["x"] = canvas_x
+            self.drag_data["y"] = canvas_y
+            self.region_listbox.selection_clear(0, tk.END)
+            self.region_listbox.selection_set(clicked_region_index)
+        else:
+            self.drag_data["mode"] = "draw"
+            self.drag_data["x"] = canvas_x
+            self.drag_data["y"] = canvas_y
+            self.drag_data["item"] = self.canvas.create_rectangle(canvas_x, canvas_y, canvas_x, canvas_y, outline="red", dash=(2, 2), tags="temp_rect")
 
     def on_drag(self, event):
-        if not self.current_rect: return
-        cur_x = self.canvas.canvasx(event.x)
-        cur_y = self.canvas.canvasy(event.y)
-        self.canvas.coords(self.current_rect, self.start_x, self.start_y, cur_x, cur_y)
+        if not self.original_image: return
+        canvas_x, canvas_y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        if self.drag_data["mode"] == "draw" and self.drag_data["item"]:
+            self.canvas.coords(self.drag_data["item"], self.drag_data["x"], self.drag_data["y"], canvas_x, canvas_y)
+        elif self.drag_data["mode"] == "move":
+            dx = canvas_x - self.drag_data["x"]
+            dy = canvas_y - self.drag_data["y"]
+            region_index = self.drag_data["index"]
+            region = self.regions[region_index]
+            region["bbox"][0] += dx / self.scale
+            region["bbox"][1] += dy / self.scale
+            self.drag_data["x"], self.drag_data["y"] = canvas_x, canvas_y
+            self.draw_regions()
 
     def on_release(self, event):
-        if not self.current_rect: return
-        
-        self.canvas.delete("temp_rect")
-        self.current_rect = None
-        
-        # スケールを考慮して元の画像座標に変換
-        x1 = min(self.start_x, self.canvas.canvasx(event.x)) / self.scale
-        y1 = min(self.start_y, self.canvas.canvasy(event.y)) / self.scale
-        x2 = max(self.start_x, self.canvas.canvasx(event.x)) / self.scale
-        y2 = max(self.start_y, self.canvas.canvasy(event.y)) / self.scale
-        
-        if abs(x1 - x2) < 3 or abs(y1 - y2) < 3: return
+        if self.drag_data["mode"] == "draw" and self.drag_data["item"]:
+            self.canvas.delete("temp_rect")
+            x1 = min(self.drag_data["x"], self.canvas.canvasx(event.x)) / self.scale
+            y1 = min(self.drag_data["y"], self.canvas.canvasy(event.y)) / self.scale
+            x2 = max(self.drag_data["x"], self.canvas.canvasx(event.x)) / self.scale
+            y2 = max(self.drag_data["y"], self.canvas.canvasy(event.y)) / self.scale
+            if abs(x1 - x2) < 3 or abs(y1 - y2) < 3: return
+            name = simpledialog.askstring("ラベル名", "この領域のラベル名を入力してください:", parent=self)
+            if name:
+                bbox = [int(x1), int(y1), int(x2 - x1), int(y2 - y1)]
+                self.regions.append({"name": name, "bbox": bbox, "type": self.mode.get()})
+                self.update_listbox()
+                self.draw_regions()
+        elif self.drag_data["mode"] == "move":
+            # 移動完了時に、座標を整数に確定させる
+            region_index = self.drag_data["index"]
+            region = self.regions[region_index]
+            region["bbox"][0] = int(region["bbox"][0])
+            region["bbox"][1] = int(region["bbox"][1])
+            # 念のため、幅と高さも整数に
+            region["bbox"][2] = int(region["bbox"][2])
+            region["bbox"][3] = int(region["bbox"][3])
+            self.draw_regions() # 最終位置を再描画
 
-        name = simpledialog.askstring("ラベル名", "この領域のラベル名を入力してください:", parent=self)
-        if name:
-            bbox = [int(x1), int(y1), int(x2 - x1), int(y2 - y1)]
-            self.regions.append({"name": name, "bbox": bbox, "type": self.mode.get()})
-            self.region_listbox.insert(tk.END, f"{name} ({self.mode.get()})")
-            self.draw_regions()
+        self.drag_data["mode"] = None
+        self.drag_data["item"] = None
+
+    def get_region_at(self, x, y):
+        for i, region in reversed(list(enumerate(self.regions))):
+            r_x, r_y, r_w, r_h = region["bbox"]
+            disp_x1, disp_y1 = r_x * self.scale, r_y * self.scale
+            disp_x2, disp_y2 = (r_x + r_w) * self.scale, (r_y + r_h) * self.scale
+            if disp_x1 <= x <= disp_x2 and disp_y1 <= y <= disp_y2:
+                return i
+        return None
 
     def draw_regions(self):
         self.canvas.delete("region")
         for region in self.regions:
             x, y, w, h = region["bbox"]
-            # 元の画像座標を現在のスケールに合わせて描画
-            disp_x1 = x * self.scale
-            disp_y1 = y * self.scale
-            disp_x2 = (x + w) * self.scale
-            disp_y2 = (y + h) * self.scale
-            
+            disp_x1, disp_y1 = x * self.scale, y * self.scale
+            disp_x2, disp_y2 = (x + w) * self.scale, (y + h) * self.scale
             color = "cyan" if region["type"] == "checkbox" else "magenta"
             self.canvas.create_rectangle(disp_x1, disp_y1, disp_x2, disp_y2, outline=color, width=2, tags="region")
             self.canvas.create_text(disp_x1, disp_y1 - 5, text=region["name"], anchor=tk.SW, fill=color, tags="region")
+
+    def update_listbox(self):
+        self.region_listbox.delete(0, tk.END)
+        for region in self.regions:
+            self.region_listbox.insert(tk.END, f'{region["name"]} ({region["type"]})')
 
     def delete_selected_region(self):
         selected_indices = self.region_listbox.curselection()
         if not selected_indices: return
         for index in reversed(selected_indices):
-            self.region_listbox.delete(index)
             del self.regions[index]
+        self.update_listbox()
         self.draw_regions()
 
-    def generate_config_code(self):
-        checkboxes = []
-        free_texts = []
-        
-        for region in self.regions:
-            name_str = repr(region["name"]) # クォートを正しく処理
-            bbox_str = str(region["bbox"])
+    def duplicate_selected_region(self):
+        selected_indices = self.region_listbox.curselection()
+        if not selected_indices: return
+        for index in selected_indices:
+            original_region = self.regions[index]
+            new_region = copy.deepcopy(original_region)
+            new_region["name"] = f'{original_region["name"]}_copy'
+            new_region["bbox"][0] += 10 # 少しずらす
+            new_region["bbox"][1] += 10
+            self.regions.append(new_region)
+        self.update_listbox()
+        self.draw_regions()
 
+    def edit_region_name(self, event):
+        selected_indices = self.region_listbox.curselection()
+        if not selected_indices: return
+        index = selected_indices[0]
+        region = self.regions[index]
+        old_name = region["name"]
+        new_name = simpledialog.askstring("ラベル名変更", "新しいラベル名を入力してください:", initialvalue=old_name, parent=self)
+        if new_name and new_name != old_name:
+            region["name"] = new_name
+            self.update_listbox()
+            self.draw_regions()
+
+    def generate_config_code(self):
+        checkboxes, free_texts = [], []
+        for region in self.regions:
+            name_str, bbox_str = repr(region["name"]), str(region["bbox"])
             if region["type"] == "checkbox":
-                threshold = 0.1 # チェックボックス用のデフォルト閾値
+                threshold = 0.1
                 checkboxes.append(f'        {{"name": {name_str}, "bbox": {bbox_str}, "threshold": {threshold}}}')
             else:
-                threshold = 0.01 # 固定値
+                threshold = 0.01
                 free_texts.append(f'        {{"name": {name_str}, "bbox": {bbox_str}, "threshold": {threshold}}}')
-
-        # 文字列を組み立てる
         config_parts = ["CONFIG = {"]
         config_parts.append('    "checkboxes": [')
         config_parts.append(",\n".join(checkboxes))
         config_parts.append('    ],')
         config_parts.append('    "free_texts": [')
         config_parts.append(",\n".join(free_texts))
-        config_parts.append('    ],')
-        config_parts.append('    "checkbox_threshold": 0.1 # この値は手動で調整してください')
+        config_parts.append('    ]')
         config_parts.append("}")
         config_str = "\n".join(config_parts)
-        
         self.code_text.delete(1.0, tk.END)
         self.code_text.insert(tk.END, config_str)
         messagebox.showinfo("成功", "設定コードが生成されました。下のボックスからコピーしてください。")
@@ -197,15 +240,13 @@ class CoordinateSetterApp(tk.Tk):
         self.canvas.scan_dragto(event.x, event.y, gain=1)
 
     def zoom(self, event):
-        if event.delta > 0 or event.num == 4: # Zoom in
+        if event.delta > 0 or event.num == 4:
             factor = 1.1
-        elif event.delta < 0 or event.num == 5: # Zoom out
+        elif event.delta < 0 or event.num == 5:
             factor = 0.9
         else:
             return
-            
         self.scale *= factor
-        # 画像と領域を新しいスケールで再描画する
         self.show_image()
 
 if __name__ == "__main__":
