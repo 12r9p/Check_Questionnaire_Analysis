@@ -242,7 +242,7 @@ def run_analysis(config, image_dir, output_dir, output_csv):
         return
 
     df = pd.DataFrame(all_results)
-    df.to_csv(output_csv, index=False)
+    df.to_csv(output_csv, index=False, encoding='utf-8-sig')
     print(f"\n✅ 全画像解析完了。結果を {output_csv} に出力しました。")
     print(f"✅ 自由記述があった画像は {output_dir} にコピーされました。")
 
