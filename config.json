@@ -2,7 +2,7 @@
     "debug_mode": true,
     "anchors": [
         {"name": "anchor1", "template_path": "images/anchor1.png", "expected_bbox": [72, 906, 376, 328]},
-        {"name": "anchor2", "template_path": "images/anchor2.png", "expected_bbox": [1587, 886, 686, 378]}
+        {"name": "anchor2", "template_path": "images/anchor2.png", "expected_bbox": [1227, 2849, 759, 83]}
     ],
     "checkboxes": [
         {"name": "1知っている", "bbox": [171, 1491, 79, 75], "threshold": 0.091},
