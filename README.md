@@ -30,7 +30,7 @@
     まず、Condaで主要なライブラリをインストールします。
 
     ```bash
-    conda create -n survey-tool python=3.11 tk pillow pandas opencv tabulate
+    conda create -n survey-tool python=3.11 tk pillow pandas opencv tabulate tqdm
     ```
     *(途中で `Proceed ([y]/n)?` と聞かれたら `y` を入力してEnterを押してください)*
 

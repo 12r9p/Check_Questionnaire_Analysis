@@ -1,5 +1,6 @@
 .gemini
 images
+debug_output
 results.csv
 analysis_summary.md
 free_texts
